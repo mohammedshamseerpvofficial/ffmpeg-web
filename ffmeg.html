@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FFmpeg Web Browser</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .container {
+      margin-top: 50px;
+      max-width: 600px;
+    }
+    .output-container {
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container shadow-lg p-4 rounded bg-white">
+    <h1 class="text-center text-primary">FFmpeg Web Browser</h1>
+    <p class="text-center">Convert videos and M3U8 streams to MP4 format directly in your browser!</p>
+
+    <!-- File Input -->
+    <div class="mb-3">
+      <label for="fileInput" class="form-label">Select a Video/Audio File</label>
+      <input type="file" class="form-control" id="fileInput" accept="video/*,audio/*">
+    </div>
+
+    <!-- M3U8 URL Input -->
+    <div class="mb-3">
+      <label for="m3u8Url" class="form-label">Or Enter an M3U8 URL</label>
+      <input type="url" class="form-control" id="m3u8Url" placeholder="https://example.com/stream.m3u8">
+    </div>
+
+    <!-- Convert Button -->
+    <div class="d-grid">
+      <button class="btn btn-primary" id="convertBtn">Convert to MP4</button>
+    </div>
+
+    <!-- Output Section -->
+    <div class="output-container" id="output"></div>
+  </div>
+
+  <!-- Bootstrap Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- FFmpeg JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.4/dist/ffmpeg.min.js"></script>
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true });
+
+    document.getElementById('convertBtn').addEventListener('click', async () => {
+      const fileInput = document.getElementById('fileInput');
+      const m3u8Url = document.getElementById('m3u8Url').value;
+      const output = document.getElementById('output');
+
+      if (!fileInput.files.length && !m3u8Url) {
+        alert('Please select a file or enter an M3U8 URL.');
+        return;
+      }
+
+      // Initialize FFmpeg
+      if (!ffmpeg.isLoaded()) {
+        output.textContent = 'Loading FFmpeg...';
+        await ffmpeg.load();
+      }
+
+      output.textContent = 'Processing...';
+
+      let inputFileName = '';
+      let outputFileName = 'output.mp4';
+
+      if (m3u8Url) {
+        // Handle M3U8 URL
+        inputFileName = 'input.m3u8';
+        await ffmpeg.FS('writeFile', inputFileName, new Uint8Array(await (await fetch(m3u8Url)).arrayBuffer()));
+      } else {
+        // Handle File Upload
+        const file = fileInput.files[0];
+        inputFileName = file.name;
+        await ffmpeg.FS('writeFile', inputFileName, await fetchFile(file));
+      }
+
+      // Run FFmpeg command
+      await ffmpeg.run('-i', inputFileName, '-c', 'copy', outputFileName);
+
+      // Get the output file
+      const data = ffmpeg.FS('readFile', outputFileName);
+
+      // Create a downloadable link
+      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = outputFileName;
+      a.className = 'btn btn-success mt-3';
+      a.textContent = 'Download Converted File';
+      output.innerHTML = '';
+      output.appendChild(a);
+    });
+  </script>
+</body>
+</html>
